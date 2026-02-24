@@ -29,6 +29,9 @@ function spaceColor(space: BIMSpace): string {
   return DEFAULT_SPACE_COLORS[idx];
 }
 
+/** Small Y offset (m) so colored space floors sit above the gray FloorLevel and avoid z-fighting. */
+const FLOOR_COLOR_OFFSET_Y = 0.003;
+
 /** One floor polygon per space (room) at level elevation, with optional color. */
 function SpaceFloor({
   space,
@@ -49,7 +52,7 @@ function SpaceFloor({
     }
     return new ShapeGeometry(shape);
   }, [polygon]);
-  const y = mmToM(elevationMm);
+  const y = mmToM(elevationMm) + FLOOR_COLOR_OFFSET_Y;
   if (!geom || !Number.isFinite(y)) return null;
   return (
     <mesh
@@ -438,10 +441,16 @@ export default function BIMViewerScene({
   const { widthMm, depthMm } = useMemo(() => getBuildingSize(bim.building), [bim.building]);
   const w = mmToM(widthMm);
   const d = mmToM(depthMm);
-  const camPos: [number, number, number] = useMemo(
-    () => [w * 0.6, Math.max(w, d) * 0.4, d * 0.6],
-    [w, d]
-  );
+  const { camPos, orbitTarget } = useMemo(() => {
+    const centerX = w / 2;
+    const centerZ = d / 2;
+    // Camera height is 2x the building size
+    const camHeight = Math.max(w, d) * 2;
+    return {
+      camPos: [centerX, camHeight, centerZ] as [number, number, number],
+      orbitTarget: [centerX, 0, centerZ] as [number, number, number],
+    };
+  }, [w, d]);
 
   return (
     <div className={className ?? "w-full h-full min-h-[400px] rounded-lg overflow-hidden bg-zinc-950"}>
@@ -453,6 +462,7 @@ export default function BIMViewerScene({
         <BIMSceneContent bim={bim} />
         <OrbitControls
           makeDefault
+          target={orbitTarget}
           minPolarAngle={0}
           maxPolarAngle={Math.PI / 2 - 0.1}
           enableDamping
